@@ -4,11 +4,12 @@ const EventEmitter = require('events');
 const splitStream = require('./split-stream');
 
 const PEER_LIST_FILE = process.cwd() + '/Data/peerlist.json';
+const peerList = [];
 
 const random4digithex = () => Math.random().toString(16).split('.')[1].substr(0, 4);
 const randomuuid = () => new Array(8).fill(0).map(() => random4digithex()).join('-');
 
-function updatePeerList(newPeerList) {
+function writePeerList(newPeerList) {
   peerList = newPeerList;
   fs.writeFileSync(PEER_LIST_FILE, JSON.stringify(peerList), 'utf8');
 }
@@ -57,14 +58,14 @@ module.exports = (options) => {
     };
   
     peerList.push(newPeer);
-    updatePeerList(peerList);
+    writePeerList(peerList);
   
     socket.on('close', () => {
       connections.delete(connectionId);
       emitter.emit('_disconnect', connectionId);
   
       peerList = peerList.filter((peer) => peer.id !== newPeer.id);
-      updatePeerList(peerList);
+      writePeerList(peerList);
     });
   
     socket.on('error', (error) => {
