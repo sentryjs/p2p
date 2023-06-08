@@ -14,8 +14,6 @@ function writePeerList(newPeerList) {
   fs.writeFileSync(PEER_LIST_FILE, JSON.stringify(peerList), 'utf8');
 }
 
-console.log(PEER_LIST_FILE);
-
 module.exports = (options) => {
   //
   // Layer 1 - handle all the established connections, store
