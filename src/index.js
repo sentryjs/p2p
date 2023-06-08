@@ -22,27 +22,6 @@ module.exports = (account) => {
   const connections = new Map();
   const emitter = new EventEmitter();
 
-  // Handle all TCP connections same way, no matter
-  // if it's incoming or outgoing, we're P2P
-  // const handleNewSocket = (socket) => {
-  //   const connectionId = randomuuid();
-
-  //   connections.set(connectionId, socket);
-  //   emitter.emit('_connect', connectionId);
-
-  //   socket.on('close', () => {
-  //     connections.delete(connectionId);
-  //     emitter.emit('_disconnect', connectionId);
-  //   });
-
-  //   socket.on('error', (error) => {
-  //     emitter.emit('_connectionError', { connectionId, error });
-  //   });
-
-  //   socket.pipe(splitStream()).on('data', (message) => {
-  //     emitter.emit('_message', { connectionId, message });
-  //   });
-  // };
   const handleNewSocket = (socket) => {
     const connectionId = randomuuid();
   
