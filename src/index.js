@@ -14,7 +14,7 @@ function writePeerList(newPeerList) {
   fs.writeFileSync(PEER_LIST_FILE, JSON.stringify(peerList), 'utf8');
 }
 
-module.exports = (options) => {
+module.exports = (account) => {
   //
   // Layer 1 - handle all the established connections, store
   // them in a map and emit corresponding events
@@ -133,7 +133,7 @@ module.exports = (options) => {
   // Layer 2 - create Nodes, assign IDs, handshake
   // and keep neighbors in a collection
   //
-  const NODE_ID = randomuuid();
+  const NODE_ID = account.id;
   const neighbors = new Map();
 
   // A helper to find the node ID by the connection ID
@@ -257,6 +257,7 @@ module.exports = (options) => {
   });
 
   return {
+    findNodeId,
     listen,
     connect,
     close,
