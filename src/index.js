@@ -4,7 +4,7 @@ const EventEmitter = require('events');
 const splitStream = require('./split-stream');
 
 const PEER_LIST_FILE = process.cwd() + '/Data/peerlist.json';
-const peerList = [];
+var peerList = [];
 
 const random4digithex = () => Math.random().toString(16).split('.')[1].substr(0, 4);
 const randomuuid = () => new Array(8).fill(0).map(() => random4digithex()).join('-');
