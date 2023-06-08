@@ -52,7 +52,7 @@ module.exports = (options) => {
     emitter.emit('_connect', connectionId);
   
     const newPeer = {
-      id: randomuuid(),
+      id: connectionId,
       ip: socket.remoteAddress,
       port: socket.remotePort,
     };
