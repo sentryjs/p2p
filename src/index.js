@@ -1,9 +1,19 @@
+const fs = require('fs');
 const net = require('net');
 const EventEmitter = require('events');
 const splitStream = require('./split-stream');
 
+const PEER_LIST_FILE = process.cwd() + '/Data/peerlist.json';
+
 const random4digithex = () => Math.random().toString(16).split('.')[1].substr(0, 4);
 const randomuuid = () => new Array(8).fill(0).map(() => random4digithex()).join('-');
+
+function updatePeerList(newPeerList) {
+  peerList = newPeerList;
+  fs.writeFileSync(PEER_LIST_FILE, JSON.stringify(peerList), 'utf8');
+}
+
+console.log(PEER_LIST_FILE);
 
 module.exports = (options) => {
   //
@@ -14,47 +24,86 @@ module.exports = (options) => {
   const emitter = new EventEmitter();
 
   // Handle all TCP connections same way, no matter
-  // if it's incoming or outcoming, we're p2p
+  // if it's incoming or outgoing, we're P2P
+  // const handleNewSocket = (socket) => {
+  //   const connectionId = randomuuid();
+
+  //   connections.set(connectionId, socket);
+  //   emitter.emit('_connect', connectionId);
+
+  //   socket.on('close', () => {
+  //     connections.delete(connectionId);
+  //     emitter.emit('_disconnect', connectionId);
+  //   });
+
+  //   socket.on('error', (error) => {
+  //     emitter.emit('_connectionError', { connectionId, error });
+  //   });
+
+  //   socket.pipe(splitStream()).on('data', (message) => {
+  //     emitter.emit('_message', { connectionId, message });
+  //   });
+  // };
   const handleNewSocket = (socket) => {
     const connectionId = randomuuid();
-
+  
     connections.set(connectionId, socket);
     emitter.emit('_connect', connectionId);
-
+  
+    const newPeer = {
+      id: randomuuid(),
+      ip: socket.remoteAddress,
+      port: socket.remotePort,
+    };
+  
+    peerList.push(newPeer);
+    updatePeerList(peerList);
+  
     socket.on('close', () => {
       connections.delete(connectionId);
       emitter.emit('_disconnect', connectionId);
+  
+      peerList = peerList.filter((peer) => peer.id !== newPeer.id);
+      updatePeerList(peerList);
     });
-
+  
+    socket.on('error', (error) => {
+      emitter.emit('_connectionError', { connectionId, error });
+    });
+  
     socket.pipe(splitStream()).on('data', (message) => {
       emitter.emit('_message', { connectionId, message });
     });
   };
 
   // Create a server itself and make it able to handle
-  // all new connections and put the to the connections map
+  // all new connections and put them in the connections map
   const server = net.createServer((socket) => handleNewSocket(socket));
 
   // A method to "raw" send data by the connection ID
-  // intended to internal use only
+  // intended for internal use only
   const _send = (connectionId, message) => {
     const socket = connections.get(connectionId);
 
     if (!socket) {
-      throw new Error(`Attempt to send data to connection that does not exist ${connectionId}`);
+      throw new Error(`Attempt to send data to a connection that does not exist: ${connectionId}`);
     }
 
     socket.write(JSON.stringify(message));
   };
 
-  // A method for the libabry consumer to
-  // esstablish connection to other nodes
+  // A method for the library consumer to
+  // establish a connection to other nodes
   const connect = (ip, port, cb) => {
     const socket = new net.Socket();
 
     socket.connect(port, ip, () => {
       handleNewSocket(socket);
       cb && cb();
+    });
+
+    socket.on('error', (error) => {
+      emitter.emit('_connectionError', { peerIp: ip, connectionId: null, error });
     });
 
     // Return a disconnect function so you can
@@ -70,7 +119,7 @@ module.exports = (options) => {
   };
 
   // One method to close all open connections
-  // and server itself
+  // and the server itself
   const close = (cb) => {
     for (let [connectionId, socket] of connections) {
       socket.destroy();
@@ -86,7 +135,7 @@ module.exports = (options) => {
   const NODE_ID = randomuuid();
   const neighbors = new Map();
 
-  // A helper to find node id by connection id
+  // A helper to find the node ID by the connection ID
   const findNodeId = (connectionId) => {
     for (let [nodeId, $connectionId] of neighbors) {
       if (connectionId === $connectionId) {
@@ -95,12 +144,12 @@ module.exports = (options) => {
     }
   };
 
-  // Once connection is established, send the handshake message
+  // Once the connection is established, send the handshake message
   emitter.on('_connect', (connectionId) => {
     _send(connectionId, { type: 'handshake', data: { nodeId: NODE_ID } });
   });
 
-  // On message we check whether it's a handshake and add
+  // On message, we check whether it's a handshake and add
   // the node to the neighbors list
   emitter.on('_message', ({ connectionId, message }) => {
     const { type, data } = message;
@@ -130,12 +179,25 @@ module.exports = (options) => {
     emitter.emit('disconnect', { nodeId });
   });
 
-  // Finally we send data to the node
-  // by finnding it's connection and using _send
+  emitter.on('_connectionError', ({ connectionId, error }) => {
+    if (connectionId) {
+      const nodeId = findNodeId(connectionId);
+
+      // TODO handle no nodeId
+
+      neighbors.delete(nodeId);
+      emitter.emit('disconnect', { nodeId });
+    } else {
+      // console.error('Connection error:', error);
+    }
+  });
+
+  // Finally, we send data to the node
+  // by finding its connection and using _send
   const send = (nodeId, data) => {
     const connectionId = neighbors.get(nodeId);
 
-    // TODO handle no connection id error
+    // TODO handle no connection ID error
 
     _send(connectionId, { type: 'message', data });
   };
@@ -146,7 +208,7 @@ module.exports = (options) => {
   //
   const alreadySeenMessages = new Set();
 
-  // A method to send packet to other nodes (all neightbors)
+  // A method to send a packet to other nodes (all neighbors)
   const sendPacket = (packet) => {
     for (const $nodeId of neighbors.keys()) {
       send($nodeId, packet);
@@ -164,10 +226,10 @@ module.exports = (options) => {
   };
 
   // Listen to all packets arriving from other nodes and
-  // decide whether to send them next and emit message
+  // decide whether to send them next and emit a message
   emitter.on('message', ({ nodeId, data: packet }) => {
-    // First of all we decide, whether this message at
-    // any point has been send by us. We do it in one
+    // First of all, we decide whether this message at
+    // any point has been sent by us. We do it in one
     // place to replace with a strategy later TODO
     if (alreadySeenMessages.has(packet.id) || packet.ttl < 1) {
       return;
@@ -194,8 +256,11 @@ module.exports = (options) => {
   });
 
   return {
-    listen, connect, close,
-    broadcast, direct,
+    listen,
+    connect,
+    close,
+    broadcast,
+    direct,
     on: emitter.on.bind(emitter),
     off: emitter.off.bind(emitter),
     id: NODE_ID,
