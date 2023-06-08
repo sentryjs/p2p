@@ -57,8 +57,10 @@ module.exports = (options) => {
       port: socket.remotePort,
     };
   
-    peerList.push(newPeer);
-    writePeerList(peerList);
+    if (peerList.some(p => p.ip !== socket.remoteAddress)) {
+      peerList.push(newPeer);
+      writePeerList(peerList);
+    }
   
     socket.on('close', () => {
       connections.delete(connectionId);
