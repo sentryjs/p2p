@@ -34,7 +34,7 @@ module.exports = (account) => {
       port: socket.remotePort,
     };
   
-    if (peerList.some(p => p.ip !== socket.remoteAddress)) {
+    if (peerList.some(p => p.ip !== socket.remoteAddress && p.port !== socket.remotePort)) {
       peerList.push(newPeer);
       writePeerList(peerList);
     }
